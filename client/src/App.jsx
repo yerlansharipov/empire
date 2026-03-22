@@ -3,11 +3,11 @@ import Peer from 'peerjs';
 import './App.css';
 
 function App() {
-  const [gameState, setGameState] = useState('home'); // home, lobby, submitting, waiting, reading, voting, revealed
+  const [gameState, setGameState] = useState('home'); // home, submitting, waiting, reading, voting, revealed
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [expectedPlayersInput, setExpectedPlayersInput] = useState(3);
-  const [roomInfo, setRoomInfo] = useState({ players: [], nicknames: [], gameState: 'lobby', allEntries: [], votes: [], expectedPlayers: 3 });
+  const [roomInfo, setRoomInfo] = useState({ players: [], nicknames: [], gameState: 'submitting', allEntries: [], votes: [], expectedPlayers: 3 });
   const [nickname, setNickname] = useState('');
   const [fakeVotes, setFakeVotes] = useState([]);
   const [entriesToRead, setEntriesToRead] = useState([]);
@@ -55,11 +55,8 @@ function App() {
       
       // Handle automatic state transitions on Host Side
       if (isHost) {
-        if (newState.gameState === 'lobby' && prev.gameState !== 'lobby') {
-           setGameState('lobby');
-        }
         if (newState.gameState === 'submitting') {
-           // We no longer automatically transition to reading. Host triggers it manually.
+           // We no longer automatically transition. Host triggers it manually.
         }
         if (newState.gameState === 'voting') {
             if (newState.votes.length === newState.players.length && newState.players.length > 0) {
@@ -96,11 +93,11 @@ function App() {
     const peerId = `gtn-${code}`;
     
     setIsHost(true);
-    setGameState('lobby');
+    setGameState('submitting');
     setRoomCode(code);
     
     const initialPlayers = [{ id: peerId }];
-    updateRoomState({ players: initialPlayers, gameState: 'lobby', expectedPlayers: expectedPlayersInput }, false);
+    updateRoomState({ players: initialPlayers, gameState: 'submitting', expectedPlayers: expectedPlayersInput }, false);
 
     const peer = new Peer(peerId);
     peerInstance.current = peer;
@@ -156,7 +153,7 @@ function App() {
     peerInstance.current = peer;
     
     setIsHost(false);
-    setGameState('lobby');
+    setGameState('submitting');
     setRoomCode(joinCode.toUpperCase());
 
     peer.on('open', (id) => {
@@ -166,7 +163,7 @@ function App() {
 
       conn.on('open', () => {
          conn.send({ type: 'JOIN' });
-         setGameState('lobby');
+         setGameState('submitting');
       });
 
       conn.on('data', (msg) => {
@@ -175,7 +172,7 @@ function App() {
             if (msg.data.gameState === 'reading') setGameState('reading');
             else if (msg.data.gameState === 'voting') setGameState('voting');
             else if (msg.data.gameState === 'revealed') setGameState('revealed');
-            else if (msg.data.gameState === 'lobby') setGameState('lobby');
+            else if (msg.data.gameState === 'submitting') setGameState('submitting');
          } else if (msg.type === 'START_READING') {
             setEntriesToRead(msg.data);
             setGameState('reading');
@@ -199,10 +196,10 @@ function App() {
     if (!nickname) { setError('Nickname required'); return; }
     
     if (isHost) {
-      updateRoomState(prev => {
+        updateRoomState(prev => {
           if (prev.nicknames.find(n => n.playerId === peerInstance.current.id)) return prev;
           const n = [...prev.nicknames, { playerId: peerInstance.current.id, nickname, isFake: false }];
-          return { ...prev, nicknames: n, gameState: prev.gameState === 'lobby' ? 'submitting' : prev.gameState };
+          return { ...prev, nicknames: n };
       });
     } else {
       hostConnection.current.send({ type: 'SUBMIT_NICKNAME', nickname });
@@ -282,9 +279,7 @@ function App() {
   };
 
   const startGame = () => {
-     if (isHost) {
-        updateRoomState({ gameState: 'submitting' });
-     }
+     // No longer used.
   };
 
   const manualStartVote = () => {
@@ -357,25 +352,11 @@ function App() {
         </div>
       )}
 
-      {gameState === 'lobby' && (
-        <div className="card room-card">
-          <h2>Room: <span className="highlight-code">{roomCode}</span></h2>
-          <div className="players-list">
-            <h3>Players Joined ({roomInfo.players.length}):</h3>
-            <ul>
-              {roomInfo.players.map((p, i) => <li key={i}>Player {i + 1} {p.id === (peerInstance.current?.id) && '(You)'}</li>)}
-            </ul>
-          </div>
-          {isHost ? (
-            <button className="btn primary-btn" onClick={startGame}>Start Game</button>
-          ) : (
-            <p className="warning-text">Waiting for host to start...</p>
-          )}
-        </div>
-      )}
-
       {gameState === 'submitting' && (
         <div className="card game-card">
+          <h2>Room: <span className="highlight-code">{roomCode}</span></h2>
+          <p className="subtitle" style={{ marginBottom: '20px' }}>Players in room: {roomInfo.players.length}</p>
+
           <h2>Submit a Nickname</h2>
           <p>Think of a funny or clever nickname. Don't let anyone see!</p>
           <form onSubmit={submitNickname} className="form-group">
