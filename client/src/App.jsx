@@ -7,7 +7,8 @@ function App() {
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
-  const [roomInfo, setRoomInfo] = useState({ players: [], nicknames: [], gameState: 'lobby', allEntries: [], votes: [] });
+  const [expectedPlayersInput, setExpectedPlayersInput] = useState(3);
+  const [roomInfo, setRoomInfo] = useState({ players: [], nicknames: [], gameState: 'lobby', allEntries: [], votes: [], expectedPlayers: 3 });
   const [nickname, setNickname] = useState('');
   const [fakeVotes, setFakeVotes] = useState([]);
   const [entriesToRead, setEntriesToRead] = useState([]);
@@ -59,14 +60,7 @@ function App() {
            setGameState('lobby');
         }
         if (newState.gameState === 'submitting') {
-           if (newState.nicknames.length === newState.players.length && newState.players.length > 0) {
-              newState.gameState = 'reading';
-              const fakes = generateFakeNicknames();
-              fakes.forEach((f, i) => {
-                newState.nicknames.push({ playerId: `fake_${i}`, nickname: f, isFake: true });
-              });
-              newState.allEntries = shuffle([...newState.nicknames]);
-           }
+           // We no longer automatically transition to reading. Host triggers it manually.
         }
         if (newState.gameState === 'voting') {
             if (newState.votes.length === newState.players.length && newState.players.length > 0) {
@@ -108,7 +102,7 @@ function App() {
     setRoomCode(code);
     
     const initialPlayers = [{ id: peerId, name: playerName }];
-    updateRoomState({ players: initialPlayers, gameState: 'lobby' }, false);
+    updateRoomState({ players: initialPlayers, gameState: 'lobby', expectedPlayers: expectedPlayersInput }, false);
 
     const peer = new Peer(peerId);
     peerInstance.current = peer;
@@ -301,6 +295,19 @@ function App() {
     }
   };
 
+  const manualStartReading = () => {
+    if (isHost) {
+      updateRoomState(prev => {
+        const newNicknames = [...prev.nicknames];
+        const fakes = generateFakeNicknames();
+        fakes.forEach((f, i) => {
+          newNicknames.push({ playerId: `fake_${i}`, nickname: f, isFake: true });
+        });
+        return { ...prev, nicknames: newNicknames, allEntries: shuffle(newNicknames), gameState: 'reading' };
+      });
+    }
+  };
+
   // Sync state correctly if host updates it manually
   useEffect(() => {
      if (isHost && roomInfo.gameState === 'submitting') {
@@ -324,6 +331,18 @@ function App() {
               onChange={(e) => setPlayerName(e.target.value)} 
               className="styled-input"
             />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '10px' }}>
+             <label style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '-5px' }}>Number of players (Host)</label>
+             <input 
+               type="number"
+               min="3"
+               placeholder="Expected Players" 
+               value={expectedPlayersInput} 
+               onChange={(e) => setExpectedPlayersInput(parseInt(e.target.value) || 3)} 
+               className="styled-input"
+             />
           </div>
           
           <div className="action-buttons">
@@ -373,6 +392,10 @@ function App() {
             />
             <button type="submit" className="btn primary-btn">Submit</button>
           </form>
+          <p className="warning-text" style={{ marginTop: '20px' }}>{roomInfo.nicknames.length} / {roomInfo.expectedPlayers} submitted.</p>
+          {isHost && (
+             <button onClick={manualStartReading} className="btn secondary-btn" style={{ marginTop: '15px' }}>Force Start Reading Phase</button>
+          )}
         </div>
       )}
 
@@ -380,8 +403,13 @@ function App() {
         <div className="card game-card">
           <h2>Waiting...</h2>
           <p>Waiting for other players to submit their nicknames.</p>
-          <p className="warning-text">{roomInfo.nicknames.length}/{roomInfo.players.length} submitted.</p>
+          <p className="warning-text">{roomInfo.nicknames.length} / {roomInfo.expectedPlayers} submitted.</p>
           <div className="loader"></div>
+          {isHost && (
+             <div style={{ marginTop: '30px' }}>
+                <button onClick={manualStartReading} className="btn primary-btn">Force Start Reading Phase</button>
+             </div>
+          )}
         </div>
       )}
 
