@@ -4,7 +4,6 @@ import './App.css';
 
 function App() {
   const [gameState, setGameState] = useState('home'); // home, lobby, submitting, waiting, reading, voting, revealed
-  const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [expectedPlayersInput, setExpectedPlayersInput] = useState(3);
@@ -93,7 +92,6 @@ function App() {
   }, []);
 
   const createRoom = () => {
-    if (!playerName) { setError('Name required'); return; }
     const code = Math.random().toString(36).substring(2, 6).toUpperCase();
     const peerId = `gtn-${code}`;
     
@@ -101,7 +99,7 @@ function App() {
     setGameState('lobby');
     setRoomCode(code);
     
-    const initialPlayers = [{ id: peerId, name: playerName }];
+    const initialPlayers = [{ id: peerId }];
     updateRoomState({ players: initialPlayers, gameState: 'lobby', expectedPlayers: expectedPlayersInput }, false);
 
     const peer = new Peer(peerId);
@@ -119,7 +117,8 @@ function App() {
       conn.on('data', (data) => {
          if (data.type === 'JOIN') {
             updateRoomState(prev => {
-              const p = [...prev.players, { id: conn.peer, name: data.name }];
+              if (prev.players.find(p => p.id === conn.peer)) return prev;
+              const p = [...prev.players, { id: conn.peer }];
               return { ...prev, players: p };
             });
          } else if (data.type === 'SUBMIT_NICKNAME') {
@@ -152,11 +151,12 @@ function App() {
   };
 
   const joinRoom = () => {
-    if (!playerName || !joinCode) { setError('Name and Room Code required'); return; }
+    if (!joinCode) { setError('Room Code required'); return; }
     const peer = new Peer();
     peerInstance.current = peer;
     
     setIsHost(false);
+    setGameState('lobby');
     setRoomCode(joinCode.toUpperCase());
 
     peer.on('open', (id) => {
@@ -165,7 +165,7 @@ function App() {
       hostConnection.current = conn;
 
       conn.on('open', () => {
-         conn.send({ type: 'JOIN', name: playerName });
+         conn.send({ type: 'JOIN' });
          setGameState('lobby');
       });
 
@@ -337,7 +337,7 @@ function App() {
           </div>
           
           <div className="action-buttons">
-            <button onClick={() => { setIsHost(true); setGameState('setup_name'); }} className="btn primary-btn">Create Room (Host)</button>
+            <button onClick={createRoom} className="btn primary-btn">Create Room (Host)</button>
             <div className="divider"><span>OR</span></div>
             <div className="join-group">
               <input 
@@ -347,11 +347,7 @@ function App() {
                 className="styled-input"
               />
               <button 
-                 onClick={() => { 
-                    if (!joinCode) { setError('Room Code required'); return; } 
-                    setIsHost(false); 
-                    setGameState('setup_name'); 
-                 }} 
+                 onClick={joinRoom} 
                  className="btn secondary-btn"
               >
                  Join Room
@@ -361,29 +357,13 @@ function App() {
         </div>
       )}
 
-      {gameState === 'setup_name' && (
-        <div className="card start-card">
-           <h2>Choose Your Name</h2>
-           <p>Enter the real name others will see in the lobby.</p>
-           <div className="form-group">
-             <input 
-               placeholder="Your Real Name" 
-               value={playerName} 
-               onChange={(e) => setPlayerName(e.target.value)} 
-               className="styled-input"
-             />
-             <button onClick={isHost ? createRoom : joinRoom} className="btn primary-btn">Enter Lobby</button>
-           </div>
-        </div>
-      )}
-
       {gameState === 'lobby' && (
         <div className="card room-card">
           <h2>Room: <span className="highlight-code">{roomCode}</span></h2>
           <div className="players-list">
-            <h3>Players ({roomInfo.players.length}):</h3>
+            <h3>Players Joined ({roomInfo.players.length}):</h3>
             <ul>
-              {roomInfo.players.map((p, i) => <li key={i}>{p.name} {p.id === (peerInstance.current?.id) && '(You)'}</li>)}
+              {roomInfo.players.map((p, i) => <li key={i}>Player {i + 1} {p.id === (peerInstance.current?.id) && '(You)'}</li>)}
             </ul>
           </div>
           {isHost ? (
@@ -486,7 +466,7 @@ function App() {
               <li key={i} className={`result-item ${entry.isFake ? 'fake-item' : 'real-item'}`}>
                 <span className="name">{entry.nickname}</span>
                 {entry.isFake && <span className="tag fake-tag">FAKE</span>}
-                {!entry.isFake && <span className="tag owner-tag">Submitted by: {roomInfo.players.find(p => p.id === entry.playerId)?.name || 'Unknown'}</span>}
+                {!entry.isFake && <span className="tag owner-tag">REAL</span>}
               </li>
             ))}
           </ul>
