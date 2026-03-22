@@ -323,15 +323,6 @@ function App() {
         <div className="card start-card">
           <h1>Guess the Nickname</h1>
           <p className="subtitle">The ultimate hidden identity party game</p>
-          
-          <div className="form-group">
-            <input 
-              placeholder="Your Name" 
-              value={playerName} 
-              onChange={(e) => setPlayerName(e.target.value)} 
-              className="styled-input"
-            />
-          </div>
 
           <div className="form-group" style={{ marginBottom: '10px' }}>
              <label style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '-5px' }}>Number of players (Host)</label>
@@ -346,7 +337,7 @@ function App() {
           </div>
           
           <div className="action-buttons">
-            <button onClick={createRoom} className="btn primary-btn">Create Room (Host)</button>
+            <button onClick={() => { setIsHost(true); setGameState('setup_name'); }} className="btn primary-btn">Create Room (Host)</button>
             <div className="divider"><span>OR</span></div>
             <div className="join-group">
               <input 
@@ -355,9 +346,34 @@ function App() {
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())} 
                 className="styled-input"
               />
-              <button onClick={joinRoom} className="btn secondary-btn">Join Room</button>
+              <button 
+                 onClick={() => { 
+                    if (!joinCode) { setError('Room Code required'); return; } 
+                    setIsHost(false); 
+                    setGameState('setup_name'); 
+                 }} 
+                 className="btn secondary-btn"
+              >
+                 Join Room
+              </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {gameState === 'setup_name' && (
+        <div className="card start-card">
+           <h2>Choose Your Name</h2>
+           <p>Enter the real name others will see in the lobby.</p>
+           <div className="form-group">
+             <input 
+               placeholder="Your Real Name" 
+               value={playerName} 
+               onChange={(e) => setPlayerName(e.target.value)} 
+               className="styled-input"
+             />
+             <button onClick={isHost ? createRoom : joinRoom} className="btn primary-btn">Enter Lobby</button>
+           </div>
         </div>
       )}
 
